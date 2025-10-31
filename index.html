@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>平民VS资本 互动游戏</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #222;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    canvas {
+      flex: 1;
+      background: #000;
+    }
+    .interaction-bar {
+      display: flex;
+      justify-content: space-around;
+      padding: 10px;
+      background: #333;
+    }
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .like {
+      background: #f53d3d;
+    }
+    .comment {
+      background: #86909c;
+    }
+    .share {
+      background: #165dff;
+    }
+    .info {
+      padding: 10px;
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <canvas id="gameCanvas"></canvas>
+    <div class="interaction-bar">
+      <button class="btn like" id="likeBtn">❤️ 点赞 0</button>
+      <button class="btn comment" id="commentBtn">💬 评论 0</button>
+      <button class="btn share" id="shareBtn">🔗 分享 0</button>
+    </div>
+    <div class="info">
+      <p>平民百姓VS资本主义 谁能获胜？</p>
+      <p>2025-10-29</p>
+    </div>
+  </div>
+
+  <script>
+    // 获取画布和上下文
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    // 适配手机屏幕
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight * 0.7; // 预留空间给交互栏
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // 单位类
+    class Unit {
+      constructor(x, y, color, type) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.type = type; // 单位类型（农民/资本家）
+        this.width = 20;
+        this.height = 30;
+        this.speed = 2;
+        this.health = 100;
+      }
+      update() {
+        // 农民向右移动，资本家向左移动
+        this.x += this.type === 'farmer' ? this.speed : -this.speed;
+      }
+      draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        // 绘制血条
+        ctx.fillStyle = 'red';
+        ctx.fillRect(this.x, this.y - 10, this.health * 0.2, 5);
+      }
+      isColliding(other) {
+        return (
+          this.x < other.x + other.width &&
+          this.x + this.width > other.x &&
+          this.y < other.y + other.height &&
+          this.y + this.height > other.y
+        );
+      }
+      takeDamage(damage) {
+        this.health -= damage;
+        return this.health <= 0;
+      }
+    }
+
+    // 游戏状态
+    const gameState = {
+      farmers: [],
+      capitalists: [],
+      resources: {
+        farmer: 100,
+        capitalist: 100
+      },
+      likeCount: 0,
+      commentCount: 0,
+      shareCount: 0
+    };
+
+    // 初始化建筑（简化版，仅做视觉示意）
+    function drawBuildings() {
+      // 农民建筑区（左侧）
+      ctx.fillStyle = 'yellow';
+      ctx.fillRect(20, canvas.height - 80, 40, 60);
+      ctx.fillRect(80, canvas.height - 80, 40, 60);
+      // 资本家建筑区（右侧）
+      ctx.fillStyle = 'green';
+      ctx.fillRect(canvas.width - 100, canvas.height - 80, 40, 60);
+      ctx.fillRect(canvas.width - 160, canvas.height - 80, 40, 60);
+      // 绘制建筑标签
+      ctx.fillStyle = 'white';
+      ctx.font = '12px Arial';
+      ctx.fillText('农场', 30, canvas.height - 40);
+      ctx.fillText('武器库', 90, canvas.height - 40);
+      ctx.fillText('银行', canvas.width - 90, canvas.height - 40);
+      ctx.fillText('资本', canvas.width - 150, canvas.height - 40);
+    }
+
+    // 动画循环
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBuildings();
+
+      // 更新并绘制所有单位
+      const allUnits = [...gameState.farmers, ...gameState.capitalists];
+      allUnits.forEach(unit => {
+        unit.update();
+        unit.draw();
+      });
+
+      // 碰撞检测
+      for (let i = 0; i < gameState.farmers.length; i++) {
+        for (let j = 0; j < gameState.capitalists.length; j++) {
+          const farmer = gameState.farmers[i];
+          const capitalist = gameState.capitalists[j];
+          if (farmer.isColliding(capitalist)) {
+            const farmerDied = farmer.takeDamage(20);
+            const capitalistDied = capitalist.takeDamage(20);
+            if (farmerDied) gameState.farmers.splice(i, 1);
+            if (capitalistDied) gameState.capitalists.splice(j, 1);
+            break; // 一次碰撞后跳出循环，避免重复检测
+          }
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // 点击生成单位
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (x < canvas.width / 2) {
+        // 左侧生成农民
+        if (gameState.resources.farmer >= 50) {
+          gameState.farmers.push(new Unit(x, y, 'yellow', 'farmer'));
+          gameState.resources.farmer -= 50;
+        }
+      } else {
+        // 右侧生成资本家
+        if (gameState.resources.capitalist >= 50) {
+          gameState.capitalists.push(new Unit(x, y, 'green', 'capitalist'));
+          gameState.resources.capitalist -= 50;
+        }
+      }
+    });
+
+    // 交互按钮事件
+    document.getElementById('likeBtn').addEventListener('click', () => {
+      gameState.likeCount++;
+      document.getElementById('likeBtn').innerText = `❤️ 点赞 ${gameState.likeCount}`;
+    });
+    document.getElementById('commentBtn').addEventListener('click', () => {
+      gameState.commentCount++;
+      document.getElementById('commentBtn').innerText = `💬 评论 ${gameState.commentCount}`;
+    });
+    document.getElementById('shareBtn').addEventListener('click', () => {
+      gameState.shareCount++;
+      document.getElementById('shareBtn').innerText = `🔗 分享 ${gameState.shareCount}`;
+    });
+  </script>
+</body>
+</html>
